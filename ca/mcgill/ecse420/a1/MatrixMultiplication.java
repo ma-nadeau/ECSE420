@@ -1,8 +1,16 @@
 package ca.mcgill.ecse420.a1;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import java.util.*;
+import javax.swing.*;
+import org.jfree.chart.*;
+import org.jfree.chart.plot.*;
+import org.jfree.data.xy.*;
 
 public class MatrixMultiplication {
 
@@ -19,6 +27,7 @@ public class MatrixMultiplication {
 	}
 
 	/**
+	 * 1.1.
 	 * Returns the result of a sequential matrix multiplication
 	 * The two matrices are randomly generated
 	 * 
@@ -53,7 +62,9 @@ public class MatrixMultiplication {
 		return c;
 	}
 
-	/** Wrapper for parallel matrix multiplication with configurable number of threads
+	/**
+	 * Wrapper for parallel matrix multiplication with configurable number of
+	 * threads
 	 * 
 	 * @param a is the first matrix
 	 * @param b is the second matrix
@@ -83,6 +94,7 @@ public class MatrixMultiplication {
 	}
 
 	/**
+	 * 1.2.
 	 * Returns the result of a concurrent matrix multiplication
 	 * The two matrices are randomly generated
 	 * 
@@ -93,18 +105,21 @@ public class MatrixMultiplication {
 	public static double[][] parallelMultiplyMatrix(double[][] a, double[][] b) {
 
 		return parallelMultiplyMatrix(a, b, NUMBER_THREADS);
-		
+
 	}
 
-
 	/**
+	 * 1.3.
 	 * Measure execution time (ms) for sequential and parallel multiplication.
 	 * Prints average times over 'trials' runs and the speedup.
+	 * 
+	 * @param matrixSize size of (square) matrices
+	 * @param trials     number of trials to average over
 	 */
 	public static void measureExecutionTimes(int matrixSize, int trials, int numThreads) {
 		System.out.println(
-			"Measuring matrix multiplication with size=" + matrixSize + ", trials=" + trials + ", threads=" + numThreads
-		);
+				"Measuring matrix multiplication with size=" + matrixSize + ", trials=" + trials + ", threads="
+						+ numThreads);
 
 		// generate matrices once and reuse for fairness
 		double[][] a = generateRandomMatrix(matrixSize, matrixSize);
@@ -114,7 +129,7 @@ public class MatrixMultiplication {
 		long parallelTotal = 0;
 
 		for (int t = 0; t < trials; t++) {
-			
+
 			// Sequential
 			long start = System.nanoTime(); // start time
 			sequentialMultiplyMatrix(a, b);
@@ -137,6 +152,179 @@ public class MatrixMultiplication {
 		System.out.printf("Speedup (seq/par) : %.2fx\n", speedup);
 	}
 
+
+	/**
+	 * Plots execution time as a function of number of threads
+	 * 
+	 * @param results map of number of threads to execution time
+	 */
+	private static void plotComputeTimeAsAFunctionOfThreads(Map<Integer, Double> results) {
+		XYSeries series = new XYSeries("Execution Time");
+
+		for (Map.Entry<Integer, Double> entry : results.entrySet()) {
+			series.add(entry.getKey(), entry.getValue());
+		}
+
+		XYDataset dataset = new XYSeriesCollection(series);
+
+		JFreeChart chart = ChartFactory.createXYLineChart(
+				"Matrix Multiplication Execution Time vs Number of Threads",
+				"Number of Threads",
+				"Average Execution Time (ms)",
+				dataset,
+				PlotOrientation.VERTICAL,
+				true,
+				true,
+				false
+		);
+
+		ChartPanel panel = new ChartPanel(chart);
+		panel.setPreferredSize(new java.awt.Dimension(800, 600));
+
+		JFrame frame = new JFrame("Performance Graph");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setContentPane(panel);
+		frame.pack();
+		frame.setLocationRelativeTo(null);
+		frame.setVisible(true);
+
+	}
+
+	/**
+	 * 1.4.
+	 * Vary the number of threads used in parallel multiplication for matrix sizes
+	 * of `4000x4000`.
+	 * Plot the execution time as a function of number of threads.
+	 */
+	private static void experimentWithDifferentThreadCounts() {
+		int matrixSize = 4000; // size of (square) matrices
+		int trials = 5; // number of trials to average over
+
+		// generate matrices once and reuse for fairness
+		double[][] a = generateRandomMatrix(matrixSize, matrixSize);
+		double[][] b = generateRandomMatrix(matrixSize, matrixSize);
+
+		int[] threadCounts = { 1, 2, 4, 8, 16, 32, 64 };
+
+		// Map to store results of thread count to average execution time
+		Map<Integer, Double> results = new LinkedHashMap<>();
+
+		try {
+			for (int threads : threadCounts) { // for each thread count
+				long totalTime = 0; // total time for all trials
+				for (int t = 0; t < trials; t++) { // for each trial
+					long start = System.nanoTime(); // start time
+					parallelMultiplyMatrix(a, b, threads); 
+					long end = System.nanoTime(); // stop time
+					totalTime += (end - start); // sum up times over trials
+				}
+				double avgMs = totalTime / (trials * 1_000_000.0); 
+				results.put(threads, avgMs);
+				System.out.println("Threads: " + threads + " | Avg Time (ms): " + avgMs);
+
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} 
+		plotComputeTimeAsAFunctionOfThreads(results);
+
+	}
+
+
+	private static void plotExecutionTimeAsFunctionOfMatrixSizeForParallelAndSequential(
+			Map<Integer, Double> sequentialResults,
+			Map<Integer, Double> parallelResults) {
+
+		XYSeries seqSeries = new XYSeries("Sequential Execution Time");
+		XYSeries parSeries = new XYSeries("Parallel Execution Time");
+
+		for (Map.Entry<Integer, Double> entry : sequentialResults.entrySet()) {
+			seqSeries.add(entry.getKey(), entry.getValue());
+		}
+
+		for (Map.Entry<Integer, Double> entry : parallelResults.entrySet()) {
+			parSeries.add(entry.getKey(), entry.getValue());
+		}
+
+		XYDataset dataset = new XYSeriesCollection();
+		((XYSeriesCollection) dataset).addSeries(seqSeries);
+		((XYSeriesCollection) dataset).addSeries(parSeries);
+
+		JFreeChart chart = ChartFactory.createXYLineChart(
+				"Matrix Multiplication Execution Time vs Matrix Size",
+				"Matrix Size (N x N)",
+				"Average Execution Time (ms)",
+				dataset,
+				PlotOrientation.VERTICAL,
+				true,
+				true,
+				false
+		);
+
+		ChartPanel panel = new ChartPanel(chart);
+		panel.setPreferredSize(new java.awt.Dimension(800, 600));
+
+		JFrame frame = new JFrame("Performance Graph");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setContentPane(panel);
+		frame.pack();
+		frame.setLocationRelativeTo(null);
+		frame.setVisible(true);
+
+	}
+
+	
+	/** 1.5.
+	 *  Vary the size of the matrices being multiplied as 100x100, 200x200, 500x500, 1000x1000, 2000x2000, 3000x3000 and 4000x4000,
+	 * and plot the execution time as a function of matrix size for both parallel and sequential multiplication in one graph.
+	 * 
+	 */
+	private static void experimentWithDifferentMatrixSizes() {
+		int[] matrixSizes = { 100, 200, 500, 1000, 2000, 3000, 4000 };
+		int trials = 5; // number of trials to average over
+
+		// Maps to store results of matrix size to average execution time
+		Map<Integer, Double> sequentialResults = new LinkedHashMap<>();
+		Map<Integer, Double> parallelResults = new LinkedHashMap<>();
+
+		try {
+			for (int size : matrixSizes) { // for each matrix size
+				// generate matrices once and reuse for fairness
+				double[][] a = generateRandomMatrix(size, size);
+				double[][] b = generateRandomMatrix(size, size);
+
+				// Sequential multiplication
+				long sequentialTotal = 0;
+				for (int t = 0; t < trials; t++) {
+					long start = System.nanoTime();
+					sequentialMultiplyMatrix(a, b);
+					long end = System.nanoTime();
+					sequentialTotal += (end - start);
+				}
+				double seqAvgMs = sequentialTotal / (trials * 1_000_000.0);
+				sequentialResults.put(size, seqAvgMs);
+
+				// Parallel multiplication
+				long parallelTotal = 0;
+				for (int t = 0; t < trials; t++) {
+					long start = System.nanoTime();
+					parallelMultiplyMatrix(a, b);
+					long end = System.nanoTime();
+					parallelTotal += (end - start);
+				}
+				double parAvgMs = parallelTotal / (trials * 1_000_000.0);
+				parallelResults.put(size, parAvgMs);
+
+				System.out.println("Matrix Size: " + size + " | Seq Avg Time (ms): " + seqAvgMs + " | Par Avg Time (ms): " + parAvgMs);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} 
+
+		// Plotting can be implemented similarly to the previous method
+		plotExecutionTimeAsFunctionOfMatrixSizeForParallelAndSequential(sequentialResults, parallelResults);
+	}
+
 	/**
 	 * Populates a matrix of given size with randomly generated integers between
 	 * 0-10.
@@ -145,13 +333,13 @@ public class MatrixMultiplication {
 	 * @param numCols number of cols
 	 * @return matrix
 	 */
-	private static double[][] generateRandomMatrix (int numRows, int numCols) {
-             double matrix[][] = new double[numRows][numCols];
-        for (int row = 0 ; row < numRows ; row++ ) {
-            for (int col = 0 ; col < numCols ; col++ ) {
-                matrix[row][col] = (double) ((int) (Math.random() * 10.0));
-            }
-        }
-        return matrix;
-    }
+	private static double[][] generateRandomMatrix(int numRows, int numCols) {
+		double matrix[][] = new double[numRows][numCols];
+		for (int row = 0; row < numRows; row++) {
+			for (int col = 0; col < numCols; col++) {
+				matrix[row][col] = (double) ((int) (Math.random() * 10.0));
+			}
+		}
+		return matrix;
+	}
 }
